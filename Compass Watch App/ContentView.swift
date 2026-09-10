@@ -47,26 +47,15 @@ final class CompassViewModel: NSObject, ObservableObject, Compass.CompassListene
             
             withAnimation(.easeInOut(duration: 0.5)) {
                 self.handRotation = -Double(self.currentAzimuth)
-                self.directionText = self.formatter.format(azimuth)
             }
         }
     }
     
     private func loadData() {
-        guard let url = Bundle.main.url(forResource: "data", withExtension: nil) else {
-            print("Data file not found")
-            return
-        }
-        guard let content = try? String(contentsOf: url, encoding: .utf8) else {
-            print("Failed to read data")
-            return
-        }
-        
-        let pattern = #"(\d+),"([^"]*)","([^"]*)","([^"]*)",Location\(([-\d.]+),([-\d.]+)\),"([^"]*)""#
-        guard let regex = try? NSRegularExpression(pattern: pattern) else {
-            print("Invalid regex")
-            return
-        }
+       let url = Bundle.main.url(forResource: "data", withExtension: nil)!
+       let content = try! String(contentsOf: url, encoding: .utf8)
+       let pattern = #"(\d+),"([^"]*)","([^"]*)","([^"]*)",Location\(([-\d.]+),([-\d.]+)\),"([^"]*)""#
+       let regex = try! NSRegularExpression(pattern: pattern)
         
         content.enumerateLines { line, _ in
             let range = NSRange(line.startIndex..., in: line)
@@ -82,7 +71,7 @@ final class CompassViewModel: NSObject, ObservableObject, Compass.CompassListene
             let dino = DinoLocation(id, address, street, city, location, zip)
             dinoList.append(dino)
         }
-        print("Loaded \(dinoList.count) shops")
+        //print("Loaded \(dinoList.count) shops")
     }
     
     private func checkLocationAuthorization() {
@@ -90,8 +79,6 @@ final class CompassViewModel: NSObject, ObservableObject, Compass.CompassListene
         switch status {
         case .notDetermined:
             locationManager.requestWhenInUseAuthorization()
-            // Try to start updating immediately – if not authorized, it will fail silently,
-            // but once permission is granted, it should work.
             locationManager.startUpdatingLocation()
         case .authorizedWhenInUse, .authorizedAlways:
             locationManager.startUpdatingLocation()
@@ -107,12 +94,21 @@ final class CompassViewModel: NSObject, ObservableObject, Compass.CompassListene
         )
         compass.setLocation(userLocation)
     }
+    
+   private func updateDistance(from clLocation: CLLocation) {
+       let userLocation = Location(latitude: clLocation.coordinate.latitude, longitude: clLocation.coordinate.longitude)
+       if let nearest = dinoList.min(by: { $0.getDistance(userLocation) < $1.getDistance(userLocation) }) {
+           let distance = nearest.getDistance(userLocation)
+           directionText = String(format: "%.1f km", distance)
+       }
+   }
 }
 
 extension CompassViewModel: CLLocationManagerDelegate {
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         guard let location = locations.last else { return }
         setupCompass(with: location)
+        updateDistance(from: location)
     }
     
     func locationManager(_ manager: CLLocationManager, didChangeAuthorization status: CLAuthorizationStatus) {

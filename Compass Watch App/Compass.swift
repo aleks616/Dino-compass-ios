@@ -25,7 +25,7 @@ final class Compass: NSObject, CLLocationManagerDelegate {
     }
     
     func start() {
-        guard CLLocationManager.headingAvailable() else { return }
+        if !CLLocationManager.headingAvailable() { return }
         locationManager.startUpdatingHeading()
     }
     
@@ -39,34 +39,30 @@ final class Compass: NSObject, CLLocationManagerDelegate {
     }
     
     func setLocation(_ userLocation: Location) {
-        guard !dinoList.isEmpty else {
-            print("dinoList is empty, cannot set target direction")
-            return
+        if dinoList.isEmpty { return }
+        
+        if let nearest = dinoList.min(by: { $0.getDistance(userLocation) < $1.getDistance(userLocation) }),
+           let shopLocation = nearest.location {
+            //let distance = nearest.getDistance(userLocation)
+            //print(distance)
+            
+            let userLat = userLocation.latitude.toRadians()
+            let shopLat = shopLocation.latitude.toRadians()
+            let deltaLon = (shopLocation.longitude - userLocation.longitude).toRadians()
+            
+            let y = sin(deltaLon) * cos(shopLat)
+            let x = cos(userLat) * sin(shopLat) - sin(userLat) * cos(shopLat) * cos(deltaLon)
+            
+            var bearing = atan2(y, x).toDegrees()
+            bearing = (bearing + 360).truncatingRemainder(dividingBy: 360)
+            
+            targetDirection = Float(bearing)
         }
-        
-        guard let nearest = dinoList.min(by: { $0.getDistance(userLocation) < $1.getDistance(userLocation) }),
-              let shopLocation = nearest.location else {return}
-        
-        
-        let distance = nearest.getDistance(userLocation)
-        //print("Nearest: \(nearest.address)")
-        
-        let userLat = userLocation.latitude.toRadians()
-        let shopLat = shopLocation.latitude.toRadians()
-        let deltaLon = (shopLocation.longitude - userLocation.longitude).toRadians()
-        
-        let y = sin(deltaLon) * cos(shopLat)
-        let x = cos(userLat) * sin(shopLat) - sin(userLat) * cos(shopLat) * cos(deltaLon)
-        
-        var bearing = atan2(y, x).toDegrees()
-        bearing = (bearing + 360).truncatingRemainder(dividingBy: 360)
-        
-        targetDirection = Float(bearing)
     }
     
     func locationManager(_ manager: CLLocationManager, didUpdateHeading newHeading: CLHeading) {
         let magneticHeading = Float(newHeading.magneticHeading)
-        guard magneticHeading >= 0 else { return }
+        if magneticHeading < 0 { return }
         
         var azimuth = (targetDirection - magneticHeading + 360).truncatingRemainder(dividingBy: 360)
         if azimuth < 0 { azimuth += 360 }
